@@ -149,6 +149,7 @@ func (p *PacRun) getPipelineRunsFromRepo(ctx context.Context, repo *v1alpha1.Rep
 	if repo.Spec.Settings != nil && repo.Spec.Settings.PipelineRunProvenance != "" {
 		provenance = repo.Spec.Settings.PipelineRunProvenance
 	}
+	tektonDir := GetTektonDir(repo)
 	rawTemplates, err := p.vcx.GetTektonDir(ctx, p.event, tektonDir, provenance)
 	if err != nil && strings.Contains(err.Error(), "error unmarshalling yaml file") {
 		// make the error a bit more friendly for users who don't know what marshalling or intricacies of the yaml parser works

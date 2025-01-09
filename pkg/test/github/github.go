@@ -89,6 +89,7 @@ func SetupGitTree(t *testing.T, mux *http.ServeMux, dir string, event *info.Even
 		if f.isdir {
 			etype = "tree"
 			mode = "040000"
+
 			if !recursive {
 				SetupGitTree(t, mux, f.name,
 					&info.Event{
@@ -97,6 +98,34 @@ func SetupGitTree(t *testing.T, mux *http.ServeMux, dir string, event *info.Even
 						SHA:          f.sha,
 					},
 					true)
+			} else {
+				u := fmt.Sprintf("/repos/%v/%v/git/trees/%v", event.Organization, event.Repository, f.sha)
+				mux.HandleFunc(u, func(rw http.ResponseWriter, _ *http.Request) {
+					sub_dir_entries := []*github.TreeEntry{}
+					for _, _f := range files {
+						relative_filename := strings.TrimPrefix(_f.name, dir+"/")
+						relative_dirname := strings.TrimPrefix(f.name, dir+"/")
+						if !_f.isdir && strings.HasPrefix(relative_filename, relative_dirname+"/") {
+							sub_dir_entries = append(
+								sub_dir_entries,
+								&github.TreeEntry{
+									Path: github.String(relative_filename),
+									Mode: github.String(mode),
+									Type: github.String(etype),
+									SHA:  github.String(_f.sha),
+								})
+						}
+					}
+
+					tree := &github.Tree{
+						SHA:     &f.sha,
+						Entries: sub_dir_entries,
+					}
+					// encode tree as json
+					b, err := json.Marshal(tree)
+					assert.NilError(t, err)
+					fmt.Fprint(rw, string(b))
+				})
 			}
 		} else {
 			mux.HandleFunc(fmt.Sprintf("/repos/%v/%v/git/blobs/%v", event.Organization, event.Repository, f.sha),

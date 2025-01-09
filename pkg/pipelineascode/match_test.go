@@ -120,7 +120,7 @@ func TestGetPipelineRunsFromRepo(t *testing.T) {
 		logSnippet            string
 	}{
 		{
-			name: "more than one pipelinerun in .tekton dir",
+			name: "more than one pipelinerun in tekton dir",
 			repositories: &v1alpha1.Repository{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "testrepo",
@@ -133,7 +133,24 @@ func TestGetPipelineRunsFromRepo(t *testing.T) {
 			event:                 pullRequestEvent,
 		},
 		{
-			name: "single pipelinerun in .tekton dir",
+			name: "custom tekton dir",
+			repositories: &v1alpha1.Repository{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "testrepo",
+					Namespace: "test",
+				},
+				Spec: v1alpha1.RepositorySpec{
+					Settings: &v1alpha1.Settings{
+						TektonDir: ".tekton/testdir",
+					},
+				},
+			},
+			tektondir:             "testdata/custom_tekton_dir",
+			expectedNumberOfPruns: 2,
+			event:                 pullRequestEvent,
+		},
+		{
+			name: "single pipelinerun in tekton dir",
 			repositories: &v1alpha1.Repository{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "testrepo",
@@ -198,7 +215,11 @@ func TestGetPipelineRunsFromRepo(t *testing.T) {
 			defer teardown()
 
 			if tt.tektondir != "" {
-				ghtesthelper.SetupGitTree(t, mux, tt.tektondir, tt.event, false)
+				if tt.repositories.Spec.Settings != nil && tt.repositories.Spec.Settings.TektonDir != "" {
+					ghtesthelper.SetupGitTree(t, mux, tt.tektondir, tt.event, true)
+				} else {
+					ghtesthelper.SetupGitTree(t, mux, tt.tektondir, tt.event, false)
+				}
 			}
 
 			stdata, _ := testclient.SeedTestData(t, ctx, testclient.Data{})

@@ -104,6 +104,7 @@ type Settings struct {
 	GithubAppTokenScopeRepos []string `json:"github_app_token_scope_repos,omitempty"`
 	PipelineRunProvenance    string   `json:"pipelinerun_provenance,omitempty"`
 	Policy                   *Policy  `json:"policy,omitempty"`
+	TektonDir                string   `json:"tekton_dir,omitempty"`
 }
 
 func (s *Settings) Merge(newSettings *Settings) {

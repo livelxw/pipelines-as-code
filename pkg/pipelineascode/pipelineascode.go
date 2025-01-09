@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	tektonDir         = ".tekton"
+	defaultTektonDir  = ".tekton"
 	CompletedStatus   = "completed"
 	inProgressStatus  = "in_progress"
 	queuedStatus      = "queued"
@@ -43,6 +43,14 @@ type PacRun struct {
 	manager      *ConcurrencyManager
 	pacInfo      *info.PacOpts
 	globalRepo   *v1alpha1.Repository
+}
+
+func GetTektonDir(repo *v1alpha1.Repository) string {
+	if repo.Spec.Settings != nil && repo.Spec.Settings.TektonDir != "" {
+		return repo.Spec.Settings.TektonDir
+	} else {
+		return defaultTektonDir
+	}
 }
 
 func NewPacs(event *info.Event, vcx provider.Interface, run *params.Run, pacInfo *info.PacOpts, k8int kubeinteraction.Interface, logger *zap.SugaredLogger, globalRepo *v1alpha1.Repository) PacRun {
