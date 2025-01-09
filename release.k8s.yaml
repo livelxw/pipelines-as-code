@@ -512,6 +512,9 @@ spec:
                       enum:
                         - source
                         - default_branch
+                    tekton_dir:
+                      description: The directory that PipelineRun definitions will be in.
+                      type: string
                 concurrency_limit:
                   description: Number of maximum pipelinerun running at any moment
                   type: integer
