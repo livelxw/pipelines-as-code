@@ -215,11 +215,7 @@ func TestGetPipelineRunsFromRepo(t *testing.T) {
 			defer teardown()
 
 			if tt.tektondir != "" {
-				if tt.repositories.Spec.Settings != nil && tt.repositories.Spec.Settings.TektonDir != "" {
-					ghtesthelper.SetupGitTree(t, mux, tt.tektondir, tt.event, true)
-				} else {
-					ghtesthelper.SetupGitTree(t, mux, tt.tektondir, tt.event, false)
-				}
+				ghtesthelper.SetupGitTree(t, mux, tt.tektondir, tt.event, false)
 			}
 
 			stdata, _ := testclient.SeedTestData(t, ctx, testclient.Data{})

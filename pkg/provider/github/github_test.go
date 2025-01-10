@@ -295,7 +295,7 @@ func TestGetTektonDir(t *testing.T) {
 				shaDir := fmt.Sprintf("%x", sha256.Sum256([]byte(tt.treepath)))
 				tt.event.SHA = shaDir
 			}
-			ghtesthelper.SetupGitTree(t, mux, tt.treepath, tt.event, false)
+			ghtesthelper.SetupGitTree(t, mux, tt.treepath, tt.event, true)
 
 			got, err := gvcs.GetTektonDir(ctx, tt.event, ".tekton", tt.provenance)
 			if tt.wantErr != "" {

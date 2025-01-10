@@ -307,17 +307,22 @@ func (v *Provider) GetTektonDir(ctx context.Context, runevent *info.Event, path,
 	} else {
 		v.Logger.Infof("Using PipelineRun definition from source pull request %s/%s#%d SHA on %s", runevent.Organization, runevent.Repository, runevent.PullRequestNumber, runevent.SHA)
 	}
-
-	rootobjects, _, err := v.Client.Git.GetTree(ctx, runevent.Organization, runevent.Repository, revision, false)
-	if err != nil {
-		return "", err
-	}
-	for _, object := range rootobjects.Entries {
-		if object.GetPath() == path {
-			if object.GetType() != "tree" {
-				return "", fmt.Errorf("%s has been found but is not a directory", path)
+	var rootobjects *github.Tree
+	var err error
+	rootobjects, _, err = v.Client.Git.GetTree(ctx, runevent.Organization, runevent.Repository, revision, false)
+	segments := strings.Split(path, "/")
+	for _, segment := range segments {
+		if err != nil {
+			return "", err
+		}
+		for _, object := range rootobjects.Entries {
+			if object.GetPath() == segment {
+				if object.GetType() != "tree" {
+					return "", fmt.Errorf("%s has been found but is not a directory", path)
+				}
+				tektonDirSha = object.GetSHA()
+				rootobjects, _, err = v.Client.Git.GetTree(ctx, runevent.Organization, runevent.Repository, tektonDirSha, false)
 			}
-			tektonDirSha = object.GetSHA()
 		}
 	}
 

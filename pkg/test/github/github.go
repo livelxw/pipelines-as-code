@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/go-github/v66/github"
 	"github.com/openshift-pipelines/pipelines-as-code/pkg/params/info"
+	"golang.org/x/exp/slices"
 	"gotest.tools/v3/assert"
 )
 
@@ -59,6 +60,11 @@ func SetupGH() (client *github.Client, mux *http.ServeMux, serverURL string, tea
 
 // SetupGitTree Take a dir and fake a full GitTree GitHub api calls reply recursively over a muxer.
 func SetupGitTree(t *testing.T, mux *http.ServeMux, dir string, event *info.Event, recursive bool) {
+	fileShas := []string{}
+	DoSetupGitTree(t, mux, dir, event, recursive, &fileShas)
+}
+
+func DoSetupGitTree(t *testing.T, mux *http.ServeMux, dir string, event *info.Event, recursive bool, fileShas *[]string) {
 	entries := []*github.TreeEntry{}
 	type file struct {
 		sha, name string
@@ -90,68 +96,43 @@ func SetupGitTree(t *testing.T, mux *http.ServeMux, dir string, event *info.Even
 			etype = "tree"
 			mode = "040000"
 
-			if !recursive {
-				SetupGitTree(t, mux, f.name,
-					&info.Event{
-						Organization: event.Organization,
-						Repository:   event.Repository,
-						SHA:          f.sha,
-					},
-					true)
-			} else {
-				u := fmt.Sprintf("/repos/%v/%v/git/trees/%v", event.Organization, event.Repository, f.sha)
-				mux.HandleFunc(u, func(rw http.ResponseWriter, _ *http.Request) {
-					sub_dir_entries := []*github.TreeEntry{}
-					for _, _f := range files {
-						relative_filename := strings.TrimPrefix(_f.name, dir+"/")
-						relative_dirname := strings.TrimPrefix(f.name, dir+"/")
-						if !_f.isdir && strings.HasPrefix(relative_filename, relative_dirname+"/") {
-							sub_dir_entries = append(
-								sub_dir_entries,
-								&github.TreeEntry{
-									Path: github.String(relative_filename),
-									Mode: github.String(mode),
-									Type: github.String(etype),
-									SHA:  github.String(_f.sha),
-								})
-						}
-					}
-
-					tree := &github.Tree{
-						SHA:     &f.sha,
-						Entries: sub_dir_entries,
-					}
-					// encode tree as json
-					b, err := json.Marshal(tree)
-					assert.NilError(t, err)
-					fmt.Fprint(rw, string(b))
-				})
-			}
+			DoSetupGitTree(t, mux, f.name,
+				&info.Event{
+					Organization: event.Organization,
+					Repository:   event.Repository,
+					SHA:          f.sha,
+				},
+				recursive,
+				fileShas,
+			)
 		} else {
-			mux.HandleFunc(fmt.Sprintf("/repos/%v/%v/git/blobs/%v", event.Organization, event.Repository, f.sha),
-				func(w http.ResponseWriter, r *http.Request) {
-					// go over all files and match the sha to the name we want
-					sha := filepath.Base(r.URL.Path)
-					chosenf := file{}
-					for _, f := range files {
-						if f.sha == sha {
-							chosenf = f
-							break
+			if !slices.Contains(*fileShas, f.sha) {
+				*fileShas = append(*fileShas, f.sha)
+				mux.HandleFunc(fmt.Sprintf("/repos/%v/%v/git/blobs/%v", event.Organization, event.Repository, f.sha),
+					func(w http.ResponseWriter, r *http.Request) {
+						// go over all files and match the sha to the name we want
+						sha := filepath.Base(r.URL.Path)
+						chosenf := file{}
+						for _, f := range files {
+							if f.sha == sha {
+								chosenf = f
+								break
+							}
 						}
-					}
-					assert.Assert(t, chosenf.name != "", "sha %s not found", sha)
+						assert.Assert(t, chosenf.name != "", "sha %s not found", sha)
 
-					s, err := os.ReadFile(chosenf.name)
-					assert.NilError(t, err)
-					// encode content as base64
-					blob := &github.Blob{
-						SHA:     github.String(chosenf.sha),
-						Content: github.String(base64.StdEncoding.EncodeToString(s)),
-					}
-					b, err := json.Marshal(blob)
-					assert.NilError(t, err)
-					fmt.Fprint(w, string(b))
-				})
+						s, err := os.ReadFile(chosenf.name)
+						assert.NilError(t, err)
+						// encode content as base64
+						blob := &github.Blob{
+							SHA:     github.String(chosenf.sha),
+							Content: github.String(base64.StdEncoding.EncodeToString(s)),
+						}
+						b, err := json.Marshal(blob)
+						assert.NilError(t, err)
+						fmt.Fprint(w, string(b))
+					})
+			}
 		}
 		entries = append(entries, &github.TreeEntry{
 			Path: github.String(strings.TrimPrefix(f.name, dir+"/")),
@@ -160,15 +141,18 @@ func SetupGitTree(t *testing.T, mux *http.ServeMux, dir string, event *info.Even
 			SHA:  github.String(f.sha),
 		})
 	}
-	u := fmt.Sprintf("/repos/%v/%v/git/trees/%v", event.Organization, event.Repository, event.SHA)
-	mux.HandleFunc(u, func(rw http.ResponseWriter, _ *http.Request) {
-		tree := &github.Tree{
-			SHA:     &event.SHA,
-			Entries: entries,
-		}
-		// encode tree as json
-		b, err := json.Marshal(tree)
-		assert.NilError(t, err)
-		fmt.Fprint(rw, string(b))
-	})
+	if !slices.Contains(*fileShas, event.SHA) {
+		*fileShas = append(*fileShas, event.SHA)
+		u := fmt.Sprintf("/repos/%v/%v/git/trees/%v", event.Organization, event.Repository, event.SHA)
+		mux.HandleFunc(u, func(rw http.ResponseWriter, _ *http.Request) {
+			tree := &github.Tree{
+				SHA:     &event.SHA,
+				Entries: entries,
+			}
+			// encode tree as json
+			b, err := json.Marshal(tree)
+			assert.NilError(t, err)
+			fmt.Fprint(rw, string(b))
+		})
+	}
 }

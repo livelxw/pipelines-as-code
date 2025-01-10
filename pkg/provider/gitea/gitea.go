@@ -208,16 +208,21 @@ func (v *Provider) GetTektonDir(_ context.Context, event *info.Event, path, prov
 	}
 
 	tektonDirSha := ""
+	var rootobjects *gitea.GitTreeResponse
 	rootobjects, _, err := v.Client.GetTrees(event.Organization, event.Repository, revision, false)
-	if err != nil {
-		return "", err
-	}
-	for _, object := range rootobjects.Entries {
-		if object.Path == path {
-			if object.Type != "tree" {
-				return "", fmt.Errorf("%s has been found but is not a directory", path)
+	segments := strings.Split(path, "/")
+	for _, segment := range segments {
+		if err != nil {
+			return "", err
+		}
+		for _, object := range rootobjects.Entries {
+			if object.Path == segment {
+				if object.Type != "tree" {
+					return "", fmt.Errorf("%s has been found but is not a directory", path)
+				}
+				tektonDirSha = object.SHA
+				rootobjects, _, err = v.Client.GetTrees(event.Organization, event.Repository, tektonDirSha, false)
 			}
-			tektonDirSha = object.SHA
 		}
 	}
 
